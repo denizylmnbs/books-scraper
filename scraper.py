@@ -67,7 +67,10 @@ def fetch_book_detail(link, category_name, session=None):
 
     rating_word = soup.find("p", class_="star-rating")["class"][1]
     rating = RATING_WORDS.get(rating_word, 0)
-    description = soup.find("div", id="product_description").find_next_sibling("p").text.strip()
+    try:
+        description = soup.find("div", id="product_description").find_next_sibling("p").text.strip()
+    except AttributeError:
+        description = "Description not available."
 
     return Book(book_title, link, book_img_link, price, stock, rating, description, category_name)
 

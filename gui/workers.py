@@ -1,7 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import requests
 from PySide6.QtCore import QObject, QRunnable, Signal
 
 import scraper
+
+DETAIL_FETCH_WORKERS = 16
 
 
 class WorkerSignals(QObject):
@@ -32,11 +36,23 @@ class FetchCategoryBooksWorker(QRunnable):
     def run(self):
         try:
             with requests.Session() as session:
+                # pool_maxsize must cover all concurrent detail-fetch threads below,
+                # otherwise they queue up waiting for a free pooled connection.
+                adapter = requests.adapters.HTTPAdapter(pool_maxsize=DETAIL_FETCH_WORKERS)
+                session.mount("https://", adapter)
+                session.mount("http://", adapter)
+
                 links = scraper.fetch_books_for_category(self.category, session=session)
-                books = [
-                    scraper.fetch_book_detail(link, self.category.name, session=session)
-                    for link in links
-                ]
+
+                with ThreadPoolExecutor(max_workers=DETAIL_FETCH_WORKERS) as executor:
+                    books = list(
+                        executor.map(
+                            lambda link: scraper.fetch_book_detail(
+                                link, self.category.name, session=session
+                            ),
+                            links,
+                        )
+                    )
         except Exception as e:
             self.signals.error.emit(str(e))
             return
