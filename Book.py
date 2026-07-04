@@ -1,5 +1,5 @@
 class Book:
-    def __init__(self, title, link, img_link, price, stock, rating, description):
+    def __init__(self, title, link, img_link, price, stock, rating, description, category=None):
         self.title = title
         self.link = link
         self.img_link = img_link
@@ -7,6 +7,7 @@ class Book:
         self.stock = stock
         self.rating = rating
         self.description = description
+        self.category = category
 
     @property
     def title(self):
@@ -71,19 +72,28 @@ class Book:
     @property
     def description(self):
         return self._description
-    
+
     @description.setter
     def description(self, value):
         if not isinstance(value, str):
             raise ValueError("Description must be a string")
         self._description = value
 
+    @property
+    def category(self):
+        return self._category
+
+    @category.setter
+    def category(self, value):
+        if value is not None and not isinstance(value, str):
+            raise ValueError("Category must be a string")
+        self._category = value
 
     def __str__(self):
-        return f"Book(title={self.title}, price={self.price}, stock={self.stock}, rating={self.rating}"
-    
+        return f"Book(title={self.title}, price={self.price}, stock={self.stock}, rating={self.rating}, category={self.category})"
+
     def __repr__(self):
-        return f"Book(title={self.title}, link={self.link}, img_link={self.img_link}, price={self.price}, stock={self.stock}, rating={self.rating}, description={self.description})"
+        return f"Book(title={self.title}, link={self.link}, img_link={self.img_link}, price={self.price}, stock={self.stock}, rating={self.rating}, description={self.description}, category={self.category})"
     
     
     
