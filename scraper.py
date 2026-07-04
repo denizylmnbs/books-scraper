@@ -72,7 +72,16 @@ def fetch_book_detail(link, category_name, session=None):
     except AttributeError:
         description = "Description not available."
 
-    return Book(book_title, link, book_img_link, price, stock, rating, description, category_name)
+    # The breadcrumb (Home > Books > <real category> > <title>) reflects the
+    # book's actual category, which can differ from category_name when this
+    # page was reached via the catalogue-wide "Books" listing.
+    try:
+        breadcrumb_items = soup.find("ul", class_="breadcrumb").find_all("li")
+        category = breadcrumb_items[-2].text.strip()
+    except (AttributeError, IndexError):
+        category = category_name
+
+    return Book(book_title, link, book_img_link, price, stock, rating, description, category)
 
 
 def fetch_image_bytes(img_link, session=None):

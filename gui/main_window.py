@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from PySide6.QtCore import Qt, QTimer, QThreadPool
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -31,6 +33,7 @@ class MainWindow(QMainWindow):
 
         self._threadpool = QThreadPool()
         self._categories = []
+        self._categories_by_name = {}
         self._book_cache = {}
         self._pixmap_cache = {}
         self._current_category = None
@@ -129,6 +132,7 @@ class MainWindow(QMainWindow):
     def _on_categories_loaded(self, categories):
         self.loading_label.setText("")
         self._categories = categories
+        self._categories_by_name = {category.name: category for category in categories}
         self.category_list.clear()
         for category in categories:
             self.category_list.addItem(category.name)
@@ -163,6 +167,7 @@ class MainWindow(QMainWindow):
 
     def _on_books_loaded(self, category_link, books):
         self._book_cache[category_link] = books
+        self._cache_books_by_real_category(books)
         self._pending_category_link = None
         self.category_list.setEnabled(True)
         self.loading_label.setText("")
@@ -170,6 +175,21 @@ class MainWindow(QMainWindow):
         if self._current_category and self._current_category.link == category_link:
             self._current_books = books
             self._apply_filters()
+
+    def _cache_books_by_real_category(self, books):
+        # A fetched listing (e.g. the catalogue-wide "Books" category) can
+        # contain books from many real categories (per Book.category, read
+        # from each detail page's breadcrumb). Group them so those other
+        # categories are already cached and open instantly.
+        grouped = defaultdict(list)
+        for book in books:
+            if book.category:
+                grouped[book.category].append(book)
+
+        for name, group in grouped.items():
+            category = self._categories_by_name.get(name)
+            if category and category.link not in self._book_cache:
+                self._book_cache[category.link] = group
 
     def _on_error(self, message):
         self._pending_category_link = None
