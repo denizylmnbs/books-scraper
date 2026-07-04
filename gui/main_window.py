@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QScrollArea,
     QSplitter,
     QVBoxLayout,
@@ -40,6 +41,7 @@ class MainWindow(QMainWindow):
         self._current_books = []
         self._pending_category_link = None
         self._active_workers = set()
+        self._pending_report = False
 
         self._build_ui()
         self._start_category_fetch()
@@ -90,6 +92,11 @@ class MainWindow(QMainWindow):
         self.max_price_spin.setValue(10000)
         filter_bar.addWidget(self.max_price_spin)
 
+        self.report_button = QPushButton("Reports")
+        self.report_button.setEnabled(False)
+        self.report_button.clicked.connect(self._on_reports_clicked)
+        filter_bar.addWidget(self.report_button)
+
         self._filter_timer = QTimer(self)
         self._filter_timer.setSingleShot(True)
         self._filter_timer.setInterval(300)
@@ -136,6 +143,7 @@ class MainWindow(QMainWindow):
         self.category_list.clear()
         for category in categories:
             self.category_list.addItem(category.name)
+        self.report_button.setEnabled(bool(categories))
 
     def _on_category_item_clicked(self, item):
         index = self.category_list.row(item)
@@ -176,6 +184,8 @@ class MainWindow(QMainWindow):
             self._current_books = books
             self._apply_filters()
 
+        self._maybe_fulfill_pending_report()
+
     def _cache_books_by_real_category(self, books):
         # A fetched listing (e.g. the catalogue-wide "Books" category) can
         # contain books from many real categories (per Book.category, read
@@ -192,10 +202,47 @@ class MainWindow(QMainWindow):
                 self._book_cache[category.link] = group
 
     def _on_error(self, message):
+        failed_link = self._pending_category_link
         self._pending_category_link = None
         self.category_list.setEnabled(True)
         self.loading_label.setText("")
         QMessageBox.warning(self, "Error", message)
+        self._maybe_fulfill_pending_report(failed_link)
+
+    def _on_reports_clicked(self):
+        books_category = self._categories[0]
+        cached = self._book_cache.get(books_category.link)
+        if cached is not None:
+            self._show_reports(cached)
+            return
+
+        self._pending_report = True
+        self.report_button.setEnabled(False)
+        self.category_list.setCurrentRow(0)
+        self._on_category_selected(books_category)
+
+    def _show_reports(self, books):
+        from gui.report_dialog import ReportDialog
+
+        ReportDialog(books, self).exec()
+
+    def _maybe_fulfill_pending_report(self, failed_link=None):
+        if not self._pending_report:
+            return
+
+        books_category = self._categories[0]
+        cached = self._book_cache.get(books_category.link)
+        if cached is not None:
+            self._pending_report = False
+            self.report_button.setEnabled(True)
+            self._show_reports(cached)
+        elif failed_link == books_category.link:
+            # The Books fetch itself just failed -- give up instead of
+            # retrying the same failing request forever.
+            self._pending_report = False
+            self.report_button.setEnabled(True)
+        elif self._pending_category_link is None:
+            self._on_category_selected(books_category)
 
     def _apply_filters(self):
         search_text = self.search_box.text().strip().lower()
